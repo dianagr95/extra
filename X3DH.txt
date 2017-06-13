@@ -1,0 +1,95 @@
+X3DH (Triple Diffie-Hellman extendido)
+
+Diffie-Hellman simple
+
+Utilizan funciones unidireccionales : Son fáciles de calcular pero difíciles de invertir
+Logaritmo discreto: Calcular a^b mod n = x, conociendo a, b y n  es sencilla y rápida de calcular incluso en números grandes,  sin embargo conociendo a, x y n, encontrar el valor de b = log x mod n se vuelve muy complicado ya que calcular log x es muy sencillo pero hacer la reducción módulo n es muy complejo.
+
+Alicia y Bob eligen cada quién un primo p y un a que sea generador de ese primo, ambos son públicos. Luego cada uno elige un número secreto  que sólo ellos conocen, digamos c y d respectivamente, luego Alicia hace la siguiente operación a^c mod p = x1 y se la envia a Bob. Bob por su lado calcula a^d  mod p = x2 y se lo envia a Alicia. Bob recibe que x1 = a^c mod p y con su clave secreta d hace lo siguiente x1^d mod p = (a^c)^d mod p. Alicia como recibió x2 = a^d mod p calcula x2^c mod p = (a^d)^c mod p, con estos resultado Alicia y Bob obtienen que a^(cd) mod p = a^(dc) mod p = k, entonces si un intruso conociera los valores p a x1 y x2 le sería muy difícil encontrar los valores de c y d ya que se encuntra con que es el problema del logaritmo discreto.
+
+X3DH
+
+En resumen, X3DH está diseñado para configuraciones asíncronas en las que Bob está desconectado pero ha publicado alguna información en un servidor. Alice quiere usar esta información para enviar datos cifrados a Bob, y también establecer una clave secreta para comunicaciones futuras.
+
+X3DH esctablece una clave secreta compartida entre 2 usuarios que se autentican mutuamente por medio de llaves públicas, 
+
+A diferencia de Diffie-Hellman no requiere que el protocolo se ejecute simultáneamente.
+
+Consiste en  3 partes:
+1.  Bob publica su llave de identidad y prellaves en un servidor.
+2.  Alicia extrae el paquete con las prellaves del servidor y las usas para enviar en mensaje principal a Bob.
+3. Bob recibe y procesa el mensaje inicial de Alicia
+
+PUBLICACIÓN DE LAS LLAVES:
+
+Bob publica un conjunto de llaves públicas de la curva elíptica en el servidor, las cuáles contienen:
+
+*La llave de identidad de Bob IKb
+*Prellave firmada de Bob SPKb
+*Prellave firma de Bob Sig(IKb, Encode(SPKb))
+*Un conjunto de prellaves de una sola vez de Bob (OPKb1, OPKb2, OPKb3, ...)
+
+Las prellaves de una sola vez de Bob se van borrando una vez que este reciba un mensaje.
+
+Bob sólo necesita subir su clave de identidad una vez al sevidor, sin embargo, puede subir nuevas prellaves de una sola vez en otras ocasiones.
+
+Bob también cambiara las prellave firmada y la prellave firmas en ciertos intervalos de tiempo.
+
+ENVIAR EL MENSAJE INICIAL:
+
+Alice extrae el paquete con las prellaves del servidor, con los siguientes valores:
+*Llave identidad de Bob IKb
+*Prellave firmada de Bob SPKb
+*Prellave firma de bob Sig(IKb, Encode(SPKb))
+*(Opcional) prellave de una sóla vez OPKb
+ 
+El servidor debe proporcionar una de las prellaves de una vez de Bob, si es que existe, y luego borrarla. Si todas las prellaves de una sola vez han sido borradas del servidor, el paquete que extraerá Alicia no va a contener prellave de una sola vez.
+
+Alicia verifica la prellave firma y aborta si el protocolo de verificación falla. Luego genera una clave efímera con la llave pública EKA.
+
+Si el paquete no contiene prellave de una sola vez, calcula:
+	DH1 = DH(IKA, SPKB)
+    DH2 = DH(EKA, IKB)
+    DH3 = DH(EKA, SPKB)
+    SK = KDF(DH1 || DH2 || DH3) 
+
+Si el paquete contiene prellave de una sóla vez, entonces se incluye una DH:
+	DH4 = DH(EKA, OPKB)
+    SK = KDF(DH1 || DH2 || DH3 || DH4) 
+
+Luego de calcular SK, Alicisa elimina la llave efímera  y los resultados de las DH's 
+
+Alicia calcula entonces una secuencia de bytes de "datos asociados" AD que contiene información de identidad para ambas partes:
+
+AD = Encode(IKA) || Encode(IKB)
+
+Alicia opcionalmente puede agregar información adicional a AD, como los nombres de usuario de Alice y Bob, certificados u otra información de identificación.
+
+Alicia envia el mensaje inicial a Bob, el cuál contiene:
+
+* Llave de identidad de Alicia IKA
+*Lave efímera de Alicia EKA
+*Identificadores que indican que clave de una sola vez se utilizó
+ *Un texto cifrado inicial encriptado con algún esquema de cifrado AEAD utilizando AD como datos asociados y utilizando una clave de cifrado que es SK o la salida de algún PRF criptográfico tecleado por SK.
+
+El texto cifrado inicial suele ser el primer mensaje en algún protocolo de comunicación posterior a X3DH. En otras palabras, este texto cifrado normalmente tiene dos funciones, que sirven como el primer mensaje dentro de algún protocolo post-X3DH, y como parte del mensaje inicial de X3DH de Alice.
+
+Después de enviar esto, Alicia puede seguir usando SK o claves derivadas de SK dentro del protocolo post-X3DH para comunicarse con Bob
+
+RECEPCIÓN DEL MENSAJE INICIAL:
+
+Al recibir el mensaje incial de Alicia, Bob recupera la clave de identidad y la clave efímera del mensaje. Bob también carga su clave de identidas y las claves privadas correspondientes para cualesquiera prellaves firmadas y prellaves de una sóla vez, si es que Alicia usó alguna.
+
+Usando estas llaves, Bob repite el cálculo de DH Y KDF de el paso anterior para obtener SK, y luego borra los valores de los DH'S
+
+Luego contruye la secuencia de bytes AD usando IKA e IKB. Finalmente, intenta decifrar el texto cifrado inicial usando SK y AD. Si fallara el decifrado del texto inicial, Bob elimina SK y aborta el protocolo.
+
+Si el texto inicial se decifra correctamente. Bob borra cualquier prellave de una sola vez que Alicia haya utilizado, Bob puede continuar usando SK o claves derivadas de SK dentro del protocolo post-X3DH para comunicación con Alicia.
+
+Diccionario 
+
+Sig(PK, M) :  Representa una secuencia de bytes que es una firma XEdDSA en la secuencia de bytes M y verifica con la clave pública PK, y que fue creada mediante la firma de M con la clave privada correspondiente de PK. Las funciones de firma y verificación de XEdDSA.
+
+XEdDSA: algoritmo de firma que regresa una secuencia de bytes
+
+
