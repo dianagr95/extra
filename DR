@@ -1,0 +1,30 @@
+El algoritmo double ratchet es utilizado por dos partes para intercambiar mensajes cifrados en base a una clave secreta comparrtida. por lo general las partes utilizarán algún protocolo de acuerdo de claves como X3DH para acordar la clave secreta compartida, despues de esto las partes utilizarán double ratchet para enviar y recibir mensajes cifrados.
+ de cada parte se generan nuevas claves para cada mensaje double ratchet de modo que las claves anteriores no se pueden calcular a partir de las posteriores. Las partes también envían  valores públicos Diffie-Hellman  adjuntos a sus mensajes. Los resultados de los cálculos Diffie-Hellman se mezclan en las claves derivadas de modo que las claves posteriores no pueden calcularse de las anteriores. Estas propiedades le da cierta protección a los mensajes cifrados. 
+
+Una cadena de KDF es un concepto basico en el algoritmo de double ratchet.
+
+Definimos una KDF como una función criptográfica que toma una clave random y secreta KDF y algunos datos de entrada y devuelve los datos de salida. Los datos de salida son  indistinguibles de la proporcionada al azar la clave no es conocida (es decir, una KDF satisface los requisitos de una criptográfica "PRF"). Si la clave no es secreta y aleatoria, la KDF todavía debe proporcionar un hash criptográfico seguro de sus datos y claves de entrada. 
+
+Utilizamos el término cadena de KDF cuando algunos datos de la salida de un KDF se utiliza como una clave de salida y una parte se utiliza para sustituir la clave KDF, que luego se puede utilizar con otra entrada. 
+
+
+
+double ratchet simétrica
+Cada mensaje enviado o recibido se cifra con una única clave de mensaje . Las claves de mensajes son llaves de salida de las cadenas KDF emisores y receptores. Las claves KDF para estas cadenas se denominan claves de la cadena .
+
+Las entradas KDF para las cadenas de envío y recepción son constantes, por lo que estas cadenas no proporcionan la recuperación de rodaje. Las cadenas de envío y recepción simplemente asegurar que cada mensaje se cifra con una clave única que se puede eliminar después del cifrado o descifrado.
+Dado que las claves de mensaje, no se utilizan para derivar cualquier otra clave, las claves de mensaje se pueden almacenar sin afectar a la seguridad de otras claves de mensaje. Esto es útil para el manejo de mensajes perdidos o fuera de orden.
+
+ratchet diffie-hellman
+Si un atacante roba una cadena  de envío y recepción , el atacante puede calcular todas las claves de mensaje futuros y descifrar todos los mensajes. Para evitar esto, el double ratchet combina el ratchet de clave simétrica con un ratchet DH que actualiza las claves de la cadena en base a salidas Diffie-Hellman.
+
+Para implementar el ratchet DH, cada parte genera un par de claves DH (una clave pública Diffie-Hellman y la clave privada), que se convierte en su actual pareja de claves de ratchet . Cada mensaje de cualquiera de las partes comienza con una cabecera que contiene la clave pública de ratchet actual del remitente. Cuando se recibe una clave pública nueva del ratchet de la parte remota, un paso DH del ratchet se realiza sustituyendo un  par de claves del ratchet con un nuevo par de claves.
+
+Esto resulta en un comportamiento "ping-pong", como las partes se turnan sustituyendo pares de claves del ratchet. Un espía que comprometa brevemente una de las partes podría aprender el valor de una clave privada de trinquete actual, pero que la clave privada eventualmente serán reemplazados con uno sin compromisos. En ese punto, el cálculo Diffie-Hellman entre pares de claves de trinquete definirá una salida de DH desconocidos para el atacante.
+
+
+Combinando la clave simétrica y ratchet DH da el trinquete doble:
+
+Cuando un mensaje es enviado o recibido, un paso del ratchet de clave simétrica se aplica a la cadena de enviar o recibir para derivar la clave de mensaje.
+
+Cuando se recibe una clave pública nueva del ratchet, un paso del ratchet DH se realiza antes de que el ratchet de claves simétricas para reemplazar las llaves de cadena.
